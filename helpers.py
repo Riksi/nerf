@@ -1,4 +1,17 @@
 import tensorflow as tf
+import numpy as np
+
+
+def img2mse(x, y):
+    return tf.reduce_mean((x - y) ** 2)
+
+
+def mse2psnr(x):
+    return -10 * tf.math.log(x) / tf.math.log(10)
+
+
+def to8b(x):
+    return (255 * np.clip(x, 0, 1)).astype(np.uint8)
 
 
 def get_rays(H, W, focal, c2w):

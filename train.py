@@ -3,7 +3,28 @@ import numpy as np
 from data import load_dv_data
 import os
 import time
-from helpers import get_rays, ndc_rays
+from helpers import get_rays, ndc_rays, to8b, img2mse, mse2psnr
+import imageio
+from render import render, render_path
+
+
+def render_only(images, render_poses, hwf,
+                chunk_size, render_factor,
+                render_kwargs, savedir):
+    os.makedirs(savedir, exist_ok=True)
+    print('test poses shape', render_poses.shape)
+
+    rgbs, _ = render_path(render_poses,
+                          hwf,
+                          chunk_size,
+                          render_kwargs,
+                          gt_imgs=images,
+                          savedir=savedir,
+                          render_factor=render_factor)
+    print('Rendering complete', savedir)
+    imageio.mimwrite(os.path.join(savedir, 'video.mp4'),
+                     to8b(rgbs), fps=30, quality=9)
+    return
 
 
 def train():
@@ -70,7 +91,21 @@ def train():
     render_kwargs_train.update(bds_dict)
     render_kwargs_test.update(bds_dict)
 
-    #TODO: Add shortcut for rendering only
+    if args.render_only:
+
+        return render_only(
+            images=images[i_test] if args.render_test else None,
+            render_poses=render_poses,
+            hwf = hwf,
+            chunk_size=args.chunk,
+            render_factor=args.render_factor,
+            render_kwargs=render_kwargs_test,
+            savedir=os.path.join(basedir, expname, 'renderonly_{}_{:06d}'.format(
+                  'test' if args.render_test else 'path',  start
+                )
+            )
+        )
+
 
     lrate = args.lrate
     if args.lrate_decay > 0:
@@ -176,6 +211,32 @@ def train():
         optimizer.apply_gradients(zip(gradients, grad_vars))
 
         dt = time.time() - time0
+
+        def save_weights(net, prefix, i):
+            path = os.path.join(
+                basedir, expname, f'{prefix}_{i:06d}')
+            np.save(path, np.get_weights())
+            print('saved weights at', path)
+
+
+
+        # TODO: add summaries, save weights, outputs
+
+        if i % args.i_weights == 0:
+            for k in models:
+                save_weights(models[k], k, i)
+
+        if i % args.i_video == 0 and i > 0:
+            pass
+
+        if i % args.i_testset == 0 and i > 0:
+            pass
+
+        if args.i_img == 0:
+            pass
+
+
+
 
 
 
