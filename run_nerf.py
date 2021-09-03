@@ -14,7 +14,9 @@ from load_deepvoxels import load_dv_data
 from load_blender import load_blender_data
 
 
-tf.compat.v1.enable_eager_execution()
+# tf.compat.v1.enable_eager_execution()
+
+
 
 
 def batchify(fn, chunk):
@@ -471,6 +473,8 @@ def config_parser():
                         default='./data/llff/fern', help='input data directory')
 
     # training options
+    parser.add_argument("--N_iters", type=int, default=1000000,
+                        help="number of training steps")
     parser.add_argument("--netdepth", type=int, default=8,
                         help='layers in network')
     parser.add_argument("--netwidth", type=int, default=256,
@@ -709,8 +713,9 @@ def train():
     optimizer = tf.keras.optimizers.Adam(lrate)
     models['optimizer'] = optimizer
 
-    global_step = tf.compat.v1.train.get_or_create_global_step()
-    global_step.assign(start)
+    #global_step = tf.compat.v1.train.get_or_create_global_step()
+    #global_step.assign(start)
+    global_step = start
 
     # Prepare raybatch tensor if batching random rays
     N_rand = args.N_rand
@@ -743,16 +748,17 @@ def train():
         print('done')
         i_batch = 0
 
-    N_iters = 1000000
+    N_iters = args.N_iters
     print('Begin')
     print('TRAIN views are', i_train)
     print('TEST views are', i_test)
     print('VAL views are', i_val)
 
     # Summary writers
-    writer = tf.contrib.summary.create_file_writer(
+    writer = tf.summary.create_file_writer(
         os.path.join(basedir, 'summaries', expname))
     writer.set_as_default()
+
 
     for i in range(start, N_iters):
         time0 = time.time()
@@ -873,14 +879,14 @@ def train():
 
         if i % args.i_print == 0 or i < 10:
 
-            print(expname, i, psnr.numpy(), loss.numpy(), global_step.numpy())
+            print(expname, i, psnr.numpy(), loss.numpy(), global_step) #.numpy())
             print('iter time {:.05f}'.format(dt))
-            with tf.contrib.summary.record_summaries_every_n_global_steps(args.i_print):
-                tf.contrib.summary.scalar('loss', loss)
-                tf.contrib.summary.scalar('psnr', psnr)
-                tf.contrib.summary.histogram('tran', trans)
-                if args.N_importance > 0:
-                    tf.contrib.summary.scalar('psnr0', psnr0)
+
+            tf.summary.scalar('loss', loss, i)
+            tf.summary.scalar('psnr', psnr, i)
+            tf.summary.histogram('tran', trans, i)
+            if args.N_importance > 0:
+                tf.summary.scalar('psnr0', psnr0, i)
 
             if i % args.i_img == 0:
 
@@ -900,28 +906,28 @@ def train():
                     os.makedirs(testimgdir, exist_ok=True)
                 imageio.imwrite(os.path.join(testimgdir, '{:06d}.png'.format(i)), to8b(rgb))
 
-                with tf.contrib.summary.record_summaries_every_n_global_steps(args.i_img):
 
-                    tf.contrib.summary.image('rgb', to8b(rgb)[tf.newaxis])
-                    tf.contrib.summary.image(
-                        'disp', disp[tf.newaxis, ..., tf.newaxis])
-                    tf.contrib.summary.image(
-                        'acc', acc[tf.newaxis, ..., tf.newaxis])
+                tf.summary.image('rgb', to8b(rgb)[tf.newaxis], i)
+                tf.summary.image(
+                    'disp', disp[tf.newaxis, ..., tf.newaxis], i)
+                tf.summary.image(
+                    'acc', acc[tf.newaxis, ..., tf.newaxis], i)
 
-                    tf.contrib.summary.scalar('psnr_holdout', psnr)
-                    tf.contrib.summary.image('rgb_holdout', target[tf.newaxis])
+                tf.summary.scalar('psnr_holdout', psnr, i)
+                tf.summary.image('rgb_holdout', target[tf.newaxis], i)
 
                 if args.N_importance > 0:
 
-                    with tf.contrib.summary.record_summaries_every_n_global_steps(args.i_img):
-                        tf.contrib.summary.image(
-                            'rgb0', to8b(extras['rgb0'])[tf.newaxis])
-                        tf.contrib.summary.image(
-                            'disp0', extras['disp0'][tf.newaxis, ..., tf.newaxis])
-                        tf.contrib.summary.image(
-                            'z_std', extras['z_std'][tf.newaxis, ..., tf.newaxis])
 
-        global_step.assign_add(1)
+                    tf.summary.image(
+                        'rgb0', to8b(extras['rgb0'])[tf.newaxis], i)
+                    tf.summary.image(
+                        'disp0', extras['disp0'][tf.newaxis, ..., tf.newaxis], i)
+                    tf.summary.image(
+                        'z_std', extras['z_std'][tf.newaxis, ..., tf.newaxis], i)
+
+        #global_step.assign_add(1)
+        global_step += 1
 
 
 if __name__ == '__main__':
